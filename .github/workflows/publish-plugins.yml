@@ -1,0 +1,64 @@
+name: Publish Plugins
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'plugins/**'
+      - 'public/**'
+      - 'scripts/publish-plugins.sh'
+      - '.github/workflows/publish-plugins.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (optional, defaults to package.json version)'
+        required: false
+        default: ''
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Publish Plugins
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.REPO_SCOPED_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install --omit=dev --ignore-scripts
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Publish Plugins
+        env:
+          USER_CONTENT_BASE: https://fastly.jsdelivr.net/gh/${{ github.repository }}@gh-pages
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            if [ -n "$VERSION" ]; then
+              npm run publish:plugins -- "$VERSION" "gh-pages"
+            else
+              npm run publish:plugins
+            fi
+          else
+            if [ "${{ github.repository }}" != "LNReader/lnreader-plugins" ]; then
+              npm run publish:plugins -- --all-branches
+            else
+              npm run publish:plugins
+            fi
+          fi
+        shell: bash
